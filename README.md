@@ -65,7 +65,28 @@ tinystories-telemetry --run-dir experiment\runs\smoke_xpu
 tinystories-analyze --run-dir experiment\runs\smoke_xpu
 ```
 
-## Full Dissertation Run
+## Follow-Up Study Pilot (CPU)
+
+For follow-up runs on CPU fallback, use `experiment\configs\followup_cpu_pilot.yaml`.
+
+This pilot profile keeps the full model shape but reduces the run budget for practical
+iteration on CPU:
+
+- `seeds: [101, 202, 303]`
+- `target_tokens: 100,000,000`
+- `checkpoint_tokens: 10,000,000`
+
+Run the pilot experiment:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+tinystories-prepare --config experiment\configs\followup_cpu_pilot.yaml
+tinystories-train --config experiment\configs\followup_cpu_pilot.yaml
+tinystories-telemetry --run-dir experiment\runs\followup_cpu_pilot_100m
+tinystories-analyze --run-dir experiment\runs\followup_cpu_pilot_100m
+```
+
+## Full-Scale 2.5B Profile (Reference)
 
 The full config is `experiment\configs\full_2_5b_xpu.yaml`.
 
@@ -77,8 +98,10 @@ It uses a roughly 125M-parameter Llama-style profile:
 - `block_size: 512`
 - `vocab_size: 32000`
 
-The configured token target is `2,500,000,000`, preserving the compute-aware
-20-token-per-parameter budget used in the draft paper.
+The configured token target is `2,500,000,000`.
+
+Training is checkpoint-resumable. If power is lost or the process is interrupted,
+rerun the same train command and each seed will resume from its latest checkpoint.
 
 Run the full experiment:
 

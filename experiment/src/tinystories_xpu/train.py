@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import math
+import re
 import shutil
 import time
 from pathlib import Path
@@ -120,6 +121,47 @@ def save_checkpoint(
         old_path.unlink(missing_ok=True)
 
 
+def _checkpoint_tokens(path: Path) -> int:
+    match = re.search(r"_tokens_(\d+)\.pt$", path.name)
+    if not match:
+        return -1
+    return int(match.group(1))
+
+
+def _latest_checkpoint(seed_dir: Path, seed: int) -> Path | None:
+    checkpoint_dir = seed_dir / "checkpoints"
+    if not checkpoint_dir.exists():
+        return None
+    candidates = list(checkpoint_dir.glob(f"seed_{seed}_tokens_*.pt"))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (_checkpoint_tokens(item), item.stat().st_mtime))
+    return candidates[-1]
+
+
+def _latest_metrics_row(metrics_path: Path, seed: int) -> dict[str, Any] | None:
+    if not metrics_path.exists():
+        return None
+    latest_row: dict[str, Any] | None = None
+    latest_tokens = -1
+    latest_interval = -1
+    with metrics_path.open("r", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            try:
+                row_seed = int(row.get("seed", "-1"))
+                row_tokens = int(float(row.get("tokens_seen", "-1")))
+                row_interval = int(row.get("interval_index", "-1"))
+            except ValueError:
+                continue
+            if row_seed != seed:
+                continue
+            if row_tokens > latest_tokens or (row_tokens == latest_tokens and row_interval > latest_interval):
+                latest_row = row
+                latest_tokens = row_tokens
+                latest_interval = row_interval
+    return latest_row
+
+
 def run_seed(config: dict[str, Any], seed: int, run_dir: Path, meta: dict[str, Any]) -> Path:
     experiment = config["experiment"]
     training = config["training"]
@@ -132,18 +174,24 @@ def run_seed(config: dict[str, Any], seed: int, run_dir: Path, meta: dict[str, A
     seed_dir = run_dir / f"seed_{seed}"
     seed_dir.mkdir(parents=True, exist_ok=True)
     metrics_path = seed_dir / "metrics.csv"
-    if metrics_path.exists():
-        metrics_path.unlink()
+
+    target_tokens = int(experiment["target_tokens"])
+    checkpoint_tokens = int(experiment["checkpoint_tokens"])
+    checkpoint_every_tokens = int(training.get("checkpoint_every_tokens", target_tokens + 1))
+    keep_last = int(training.get("keep_last_checkpoints", 2))
+    micro_batch_size = int(training["micro_batch_size"])
+    grad_accum = int(training["gradient_accumulation_steps"])
+    tokens_per_micro = micro_batch_size * int(model_config["block_size"])
+    tokens_per_step = tokens_per_micro * grad_accum
+
+    step = 0
+    tokens_seen = 0
+    resumed_from_checkpoint = False
 
     train_path = Path(meta["train"]["path"])
     val_path = Path(meta["validation"]["path"])
     dtype = str(meta["train"]["dtype"])
-    batcher = TokenBatcher(
-        train_path,
-        dtype,
-        int(model_config["block_size"]),
-        start_offset=0,
-    )
+    batcher = TokenBatcher(train_path, dtype, int(model_config["block_size"]), start_offset=0)
     llama_config = LlamaConfig.from_dict(model_config)
     model = LlamaLanguageModel(llama_config).to(device)
     if bool(training.get("compile", False)):
@@ -156,6 +204,26 @@ def run_seed(config: dict[str, Any], seed: int, run_dir: Path, meta: dict[str, A
         weight_decay=float(training["weight_decay"]),
     )
 
+    latest_checkpoint = _latest_checkpoint(seed_dir, seed)
+    if latest_checkpoint is not None:
+        payload = torch.load(latest_checkpoint, map_location=device)
+        model.load_state_dict(payload["model_state_dict"])
+        optimizer.load_state_dict(payload["optimizer_state_dict"])
+        step = int(payload.get("step", 0))
+        tokens_seen = int(payload.get("tokens_seen", 0))
+        resumed_from_checkpoint = True
+        print(
+            f"seed={seed} resumed checkpoint={latest_checkpoint.name} "
+            f"step={step} tokens={tokens_seen:,}"
+        )
+
+    batcher = TokenBatcher(
+        train_path,
+        dtype,
+        int(model_config["block_size"]),
+        start_offset=tokens_seen,
+    )
+
     fingerprint = system_fingerprint(device)
     save_json(
         seed_dir / "run_meta.json",
@@ -165,26 +233,36 @@ def run_seed(config: dict[str, Any], seed: int, run_dir: Path, meta: dict[str, A
             if hasattr(model, "parameter_count")
             else sum(p.numel() for p in model.parameters()),
             "system": fingerprint,
+            "resumed_from_checkpoint": resumed_from_checkpoint,
+            "resume_tokens": tokens_seen,
         },
     )
 
-    target_tokens = int(experiment["target_tokens"])
-    checkpoint_tokens = int(experiment["checkpoint_tokens"])
-    checkpoint_every_tokens = int(training.get("checkpoint_every_tokens", target_tokens + 1))
-    keep_last = int(training.get("keep_last_checkpoints", 2))
-    micro_batch_size = int(training["micro_batch_size"])
-    grad_accum = int(training["gradient_accumulation_steps"])
-    tokens_per_micro = micro_batch_size * int(model_config["block_size"])
-    tokens_per_step = tokens_per_micro * grad_accum
-    next_eval_tokens = 0
-    next_checkpoint_tokens = checkpoint_every_tokens
-    tokens_seen = 0
-    step = 0
-    interval_index = 0
+    last_metrics_row = _latest_metrics_row(metrics_path, seed)
+    if last_metrics_row is None:
+        interval_index = 0
+        next_eval_tokens = 0 if tokens_seen == 0 else tokens_seen
+        last_eval_tokens = 0
+    else:
+        last_logged_tokens = int(float(last_metrics_row["tokens_seen"]))
+        interval_index = int(last_metrics_row["interval_index"]) + 1
+        last_eval_tokens = last_logged_tokens
+        if tokens_seen <= last_logged_tokens:
+            next_eval_tokens = last_logged_tokens + checkpoint_tokens
+        else:
+            # If we resumed from a checkpoint past the last logged eval, evaluate immediately.
+            next_eval_tokens = tokens_seen
+
+    if checkpoint_every_tokens > 0:
+        next_checkpoint_tokens = checkpoint_every_tokens
+        while next_checkpoint_tokens <= tokens_seen:
+            next_checkpoint_tokens += checkpoint_every_tokens
+    else:
+        next_checkpoint_tokens = target_tokens + 1
+
     recent_losses: list[float] = []
     start_time = time.perf_counter()
     last_eval_time = start_time
-    last_eval_tokens = 0
 
     print(
         f"seed={seed} parameters={sum(p.numel() for p in model.parameters()):,} "
@@ -308,6 +386,30 @@ def combine_metrics(run_dir: Path) -> None:
             rows.extend(csv.DictReader(handle))
     if not rows:
         return
+
+    deduped: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for row in rows:
+        key = (row.get("seed", ""), row.get("interval_index", ""), row.get("tokens_seen", ""))
+        deduped[key] = row
+    rows = list(deduped.values())
+
+    def _sort_key(row: dict[str, Any]) -> tuple[int, int, int]:
+        try:
+            seed = int(row.get("seed", "0"))
+        except ValueError:
+            seed = 0
+        try:
+            interval = int(row.get("interval_index", "0"))
+        except ValueError:
+            interval = 0
+        try:
+            tokens = int(float(row.get("tokens_seen", "0")))
+        except ValueError:
+            tokens = 0
+        return (seed, interval, tokens)
+
+    rows.sort(key=_sort_key)
+
     output_path = run_dir / "metrics_all.csv"
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))

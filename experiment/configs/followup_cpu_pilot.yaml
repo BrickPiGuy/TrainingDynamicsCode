@@ -1,10 +1,10 @@
 experiment:
-  run_name: tinystories_2_5b_xpu
+  run_name: followup_cpu_pilot_100m
   output_dir: experiment/runs
-  seeds: [101, 202, 303, 404, 505]
-  target_tokens: 2500000000
-  checkpoint_tokens: 50000000
-  eval_batches: 64
+  seeds: [101, 202, 303]
+  target_tokens: 100000000
+  checkpoint_tokens: 10000000
+  eval_batches: 16
   eval_seed: 9001
 
 data:
@@ -30,8 +30,8 @@ model:
   rope_base: 10000.0
 
 training:
-  device: xpu
-  precision: bf16
+  device: cpu
+  precision: fp32
   micro_batch_size: 1
   gradient_accumulation_steps: 32
   learning_rate: 0.0003
@@ -40,11 +40,11 @@ training:
   beta1: 0.9
   beta2: 0.95
   grad_clip: 1.0
-  warmup_tokens: 50000000
+  warmup_tokens: 10000000
   compile: false
   num_workers: 0
   log_every_steps: 10
-  checkpoint_every_tokens: 50000000
+  checkpoint_every_tokens: 10000000
   keep_last_checkpoints: 3
 
 telemetry:
