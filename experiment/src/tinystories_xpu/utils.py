@@ -6,6 +6,7 @@ import os
 import platform
 import random
 import socket
+import warnings
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Iterator
@@ -30,6 +31,15 @@ def select_device(requested: str) -> torch.device:
         return torch.device("cpu")
     if requested == "xpu":
         if not hasattr(torch, "xpu") or not torch.xpu.is_available():
+            allow_fallback = os.getenv("TINYSTORIES_ALLOW_CPU_FALLBACK", "1").strip().lower()
+            if allow_fallback not in {"0", "false", "no"}:
+                warnings.warn(
+                    "Requested device 'xpu' is unavailable. Falling back to CPU. "
+                    "Set TINYSTORIES_ALLOW_CPU_FALLBACK=0 to fail instead.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                return torch.device("cpu")
             raise RuntimeError(
                 "torch.xpu is not available. Install Intel GPU drivers and "
                 "PyTorch XPU wheels, then rerun tinystories-verify-xpu."

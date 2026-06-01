@@ -27,6 +27,17 @@ def analyze(run_dir: str | Path) -> None:
     df["seed"] = df["seed"].astype(int).astype(str)
     df["interval_index"] = df["interval_index"].astype(int)
 
+    duplicate_mask = df.duplicated(subset=["seed", "interval_index"], keep=False)
+    duplicate_count = int(duplicate_mask.sum())
+    if duplicate_count:
+        # Keep the latest observation per seed/interval when runs were restarted.
+        if "tokens_seen" in df.columns:
+            df["tokens_seen"] = pd.to_numeric(df["tokens_seen"], errors="coerce")
+            df = df.sort_values(["seed", "interval_index", "tokens_seen"])
+        else:
+            df = df.sort_values(["seed", "interval_index"])
+        df = df.drop_duplicates(subset=["seed", "interval_index"], keep="last")
+
     report_lines = [
         "# TinyStories XPU Statistical Analysis",
         "",
@@ -34,6 +45,7 @@ def analyze(run_dir: str | Path) -> None:
         f"Seeds: {df['seed'].nunique()}",
         f"Intervals: {df['interval_index'].nunique()}",
         f"Observations: {len(df)}",
+        f"Duplicate seed/interval rows removed: {duplicate_count}",
         "",
     ]
 

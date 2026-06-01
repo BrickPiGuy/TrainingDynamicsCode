@@ -1,0 +1,16 @@
+pyproject.toml
+src/tinystories_xpu/__init__.py
+src/tinystories_xpu/analyze.py
+src/tinystories_xpu/config.py
+src/tinystories_xpu/model.py
+src/tinystories_xpu/prepare_data.py
+src/tinystories_xpu/telemetry.py
+src/tinystories_xpu/train.py
+src/tinystories_xpu/utils.py
+src/tinystories_xpu/verify_xpu.py
+src/tinystories_xpu_experiment.egg-info/PKG-INFO
+src/tinystories_xpu_experiment.egg-info/SOURCES.txt
+src/tinystories_xpu_experiment.egg-info/dependency_links.txt
+src/tinystories_xpu_experiment.egg-info/entry_points.txt
+src/tinystories_xpu_experiment.egg-info/requires.txt
+src/tinystories_xpu_experiment.egg-info/top_level.txt

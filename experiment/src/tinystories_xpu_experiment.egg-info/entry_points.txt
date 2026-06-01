@@ -1,0 +1,6 @@
+[console_scripts]
+tinystories-analyze = tinystories_xpu.analyze:main
+tinystories-prepare = tinystories_xpu.prepare_data:main
+tinystories-telemetry = tinystories_xpu.telemetry:main
+tinystories-train = tinystories_xpu.train:main
+tinystories-verify-xpu = tinystories_xpu.verify_xpu:main

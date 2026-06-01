@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-import torch
-
-
 def main() -> None:
+    try:
+        import torch
+    except Exception as exc:
+        print(f"torch import failed: {exc}")
+        raise SystemExit(1) from exc
+
     print(f"torch: {torch.__version__}")
     has_xpu = hasattr(torch, "xpu")
     print(f"torch.xpu present: {has_xpu}")

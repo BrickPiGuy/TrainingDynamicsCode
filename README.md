@@ -43,6 +43,10 @@ If the stable PyTorch XPU wheel has a regression on your machine, try the nightl
 The setup script creates `.venv`, installs PyTorch XPU, installs this package in editable
 mode, and runs an XPU matrix-multiply check.
 
+If XPU verification fails (for example due to enterprise application-control policy), the
+setup script now automatically reinstalls CPU-only PyTorch wheels so the rest of the
+pipeline can still run.
+
 ## Smoke Test
 
 The smoke config uses a tiny model and a tiny token budget. It is designed to verify the
