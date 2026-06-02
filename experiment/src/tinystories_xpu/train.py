@@ -94,6 +94,10 @@ def write_metric(path: Path, row: dict[str, Any]) -> None:
         writer.writerow(row)
 
 
+def write_status(path: Path, payload: dict[str, Any]) -> None:
+    save_json(path, payload)
+
+
 def save_checkpoint(
     seed_dir: Path,
     model: LlamaLanguageModel,
@@ -174,6 +178,8 @@ def run_seed(config: dict[str, Any], seed: int, run_dir: Path, meta: dict[str, A
     seed_dir = run_dir / f"seed_{seed}"
     seed_dir.mkdir(parents=True, exist_ok=True)
     metrics_path = seed_dir / "metrics.csv"
+    run_status_path = run_dir / "status.json"
+    seed_status_path = seed_dir / "status.json"
 
     target_tokens = int(experiment["target_tokens"])
     checkpoint_tokens = int(experiment["checkpoint_tokens"])
@@ -216,6 +222,29 @@ def run_seed(config: dict[str, Any], seed: int, run_dir: Path, meta: dict[str, A
             f"seed={seed} resumed checkpoint={latest_checkpoint.name} "
             f"step={step} tokens={tokens_seen:,}"
         )
+
+    write_status(
+        seed_status_path,
+        {
+            "stage": "starting",
+            "seed": seed,
+            "step": step,
+            "tokens_seen": tokens_seen,
+            "target_tokens": target_tokens,
+            "updated_at": time.time(),
+        },
+    )
+    write_status(
+        run_status_path,
+        {
+            "stage": "seed_starting",
+            "seed": seed,
+            "step": step,
+            "tokens_seen": tokens_seen,
+            "target_tokens": target_tokens,
+            "updated_at": time.time(),
+        },
+    )
 
     batcher = TokenBatcher(
         train_path,
@@ -271,6 +300,17 @@ def run_seed(config: dict[str, Any], seed: int, run_dir: Path, meta: dict[str, A
 
     while tokens_seen <= target_tokens:
         if tokens_seen >= next_eval_tokens:
+            write_status(
+                seed_status_path,
+                {
+                    "stage": "evaluating",
+                    "seed": seed,
+                    "step": step,
+                    "tokens_seen": tokens_seen,
+                    "next_eval_tokens": next_eval_tokens,
+                    "updated_at": time.time(),
+                },
+            )
             synchronize(device)
             val_loss, val_ppl = evaluate(model, val_path, dtype, config, device)
             now = time.perf_counter()
@@ -297,6 +337,34 @@ def run_seed(config: dict[str, Any], seed: int, run_dir: Path, meta: dict[str, A
                 "precision": str(training.get("precision", "fp32")),
             }
             write_metric(metrics_path, row)
+            write_status(
+                seed_status_path,
+                {
+                    "stage": "checkpointed",
+                    "seed": seed,
+                    "step": step,
+                    "tokens_seen": tokens_seen,
+                    "interval_index": interval_index,
+                    "val_loss": val_loss,
+                    "val_ppl": val_ppl,
+                    "tokens_per_second": tokens_per_second,
+                    "updated_at": time.time(),
+                },
+            )
+            write_status(
+                run_status_path,
+                {
+                    "stage": "seed_checkpointed",
+                    "seed": seed,
+                    "step": step,
+                    "tokens_seen": tokens_seen,
+                    "interval_index": interval_index,
+                    "val_loss": val_loss,
+                    "val_ppl": val_ppl,
+                    "tokens_per_second": tokens_per_second,
+                    "updated_at": time.time(),
+                },
+            )
             print(
                 f"seed={seed} interval={interval_index} tokens={tokens_seen:,} "
                 f"train_loss={train_loss:.4f} val_loss={val_loss:.4f} ppl={val_ppl:.2f}"
@@ -341,6 +409,17 @@ def run_seed(config: dict[str, Any], seed: int, run_dir: Path, meta: dict[str, A
 
         if tokens_seen >= next_checkpoint_tokens:
             save_checkpoint(seed_dir, model, optimizer, seed, step, tokens_seen, keep_last)
+            write_status(
+                seed_status_path,
+                {
+                    "stage": "checkpoint_saved",
+                    "seed": seed,
+                    "step": step,
+                    "tokens_seen": tokens_seen,
+                    "next_checkpoint_tokens": next_checkpoint_tokens,
+                    "updated_at": time.time(),
+                },
+            )
             next_checkpoint_tokens += checkpoint_every_tokens
 
         log_every = int(training.get("log_every_steps", 0))
@@ -348,6 +427,16 @@ def run_seed(config: dict[str, Any], seed: int, run_dir: Path, meta: dict[str, A
             print(f"seed={seed} step={step} tokens={tokens_seen:,} loss={loss_value:.4f} lr={lr:.2e}")
 
     if last_eval_tokens != tokens_seen:
+        write_status(
+            seed_status_path,
+            {
+                "stage": "final_evaluating",
+                "seed": seed,
+                "step": step,
+                "tokens_seen": tokens_seen,
+                "updated_at": time.time(),
+            },
+        )
         synchronize(device)
         val_loss, val_ppl = evaluate(model, val_path, dtype, config, device)
         now = time.perf_counter()
@@ -370,12 +459,46 @@ def run_seed(config: dict[str, Any], seed: int, run_dir: Path, meta: dict[str, A
             "precision": str(training.get("precision", "fp32")),
         }
         write_metric(metrics_path, row)
+        write_status(
+            seed_status_path,
+            {
+                "stage": "finalized",
+                "seed": seed,
+                "step": step,
+                "tokens_seen": tokens_seen,
+                "val_loss": val_loss,
+                "val_ppl": val_ppl,
+                "updated_at": time.time(),
+            },
+        )
+        write_status(
+            run_status_path,
+            {
+                "stage": "seed_finalized",
+                "seed": seed,
+                "step": step,
+                "tokens_seen": tokens_seen,
+                "val_loss": val_loss,
+                "val_ppl": val_ppl,
+                "updated_at": time.time(),
+            },
+        )
         print(
             f"seed={seed} final tokens={tokens_seen:,} "
             f"train_loss={train_loss:.4f} val_loss={val_loss:.4f} ppl={val_ppl:.2f}"
         )
 
     save_checkpoint(seed_dir, model, optimizer, seed, step, tokens_seen, keep_last)
+    write_status(
+        seed_status_path,
+        {
+            "stage": "done",
+            "seed": seed,
+            "step": step,
+            "tokens_seen": tokens_seen,
+            "updated_at": time.time(),
+        },
+    )
     return metrics_path
 
 
@@ -423,6 +546,14 @@ def train(config_path: str | Path, seeds_override: list[int] | None = None) -> N
     data_config = config["data"]
     run_dir = repo_path(config, experiment["output_dir"]) / experiment["run_name"]
     run_dir.mkdir(parents=True, exist_ok=True)
+    write_status(
+        run_dir / "status.json",
+        {
+            "stage": "starting",
+            "run_name": experiment["run_name"],
+            "updated_at": time.time(),
+        },
+    )
     shutil.copy2(config["_config_path"], run_dir / "config.yaml")
 
     meta_path = repo_path(config, data_config["cache_dir"]) / "meta.json"
@@ -439,6 +570,15 @@ def train(config_path: str | Path, seeds_override: list[int] | None = None) -> N
     for seed in seeds:
         run_seed(config, int(seed), run_dir, meta)
     combine_metrics(run_dir)
+    write_status(
+        run_dir / "status.json",
+        {
+            "stage": "done",
+            "run_name": experiment["run_name"],
+            "metrics_path": str(run_dir / "metrics_all.csv"),
+            "updated_at": time.time(),
+        },
+    )
     print(f"Training complete. Metrics: {run_dir / 'metrics_all.csv'}")
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import time
 from typing import Iterable
 
 import numpy as np
@@ -93,9 +94,34 @@ def encode_split(config: dict, tokenizer: Tokenizer, split_name: str, output_nam
 def prepare(config_path: str | Path) -> None:
     config = load_config(config_path)
     data_config = config["data"]
-    tokenizer = train_tokenizer(config)
     cache_dir = repo_path(config, data_config["cache_dir"])
+    save_json(
+        cache_dir / "status.json",
+        {
+            "stage": "starting",
+            "updated_at": time.time(),
+            "config_path": str(config_path),
+        },
+    )
+    tokenizer = train_tokenizer(config)
+    save_json(
+        cache_dir / "status.json",
+        {
+            "stage": "encoding_train_split",
+            "updated_at": time.time(),
+            "config_path": str(config_path),
+        },
+    )
     train_meta = encode_split(config, tokenizer, data_config["train_split"], "train.bin")
+    save_json(
+        cache_dir / "status.json",
+        {
+            "stage": "encoding_validation_split",
+            "updated_at": time.time(),
+            "config_path": str(config_path),
+            "train_tokens": train_meta["tokens"],
+        },
+    )
     val_meta = encode_split(config, tokenizer, data_config["validation_split"], "validation.bin")
 
     meta = {
@@ -107,6 +133,17 @@ def prepare(config_path: str | Path) -> None:
         "validation": val_meta,
     }
     save_json(cache_dir / "meta.json", meta)
+    save_json(
+        cache_dir / "status.json",
+        {
+            "stage": "done",
+            "updated_at": time.time(),
+            "config_path": str(config_path),
+            "train_tokens": train_meta["tokens"],
+            "validation_tokens": val_meta["tokens"],
+            "meta_path": str(cache_dir / "meta.json"),
+        },
+    )
     print(f"Prepared TinyStories cache at {cache_dir}")
     print(f"Train tokens: {train_meta['tokens']:,}")
     print(f"Validation tokens: {val_meta['tokens']:,}")
