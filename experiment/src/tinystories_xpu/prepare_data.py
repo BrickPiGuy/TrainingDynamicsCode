@@ -1,23 +1,27 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import time
-from typing import Iterable
-
-import numpy as np
-from datasets import load_dataset
-from tokenizers import Tokenizer, decoders, models, pre_tokenizers, trainers
-from tqdm import tqdm
+from typing import Any, Iterable
 
 from tinystories_xpu.config import load_config, repo_path
-from tinystories_xpu.utils import save_json
 
 
 SPECIAL_TOKENS = ["<pad>", "<unk>", "<bos>", "<eos>"]
 
 
+def save_json(path: str | Path, payload: dict[str, Any]) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+
+
 def dataset_texts(config: dict, split: str, limit: int | None = None) -> Iterable[str]:
+    from datasets import load_dataset
+
     data_config = config["data"]
     dataset = load_dataset(
         data_config["dataset_name"],
@@ -33,7 +37,9 @@ def dataset_texts(config: dict, split: str, limit: int | None = None) -> Iterabl
             yield text
 
 
-def train_tokenizer(config: dict) -> Tokenizer:
+def train_tokenizer(config: dict) -> Any:
+    from tokenizers import Tokenizer, decoders, models, pre_tokenizers, trainers
+
     data_config = config["data"]
     tokenizer_path = repo_path(config, data_config["tokenizer_path"])
     if tokenizer_path.exists():
@@ -56,7 +62,10 @@ def train_tokenizer(config: dict) -> Tokenizer:
     return tokenizer
 
 
-def encode_split(config: dict, tokenizer: Tokenizer, split_name: str, output_name: str) -> dict:
+def encode_split(config: dict, tokenizer: Any, split_name: str, output_name: str) -> dict:
+    import numpy as np
+    from tqdm import tqdm
+
     data_config = config["data"]
     cache_dir = repo_path(config, data_config["cache_dir"])
     cache_dir.mkdir(parents=True, exist_ok=True)
