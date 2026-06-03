@@ -86,6 +86,32 @@ tinystories-telemetry --run-dir experiment\runs\followup_cpu_pilot_100m
 tinystories-analyze --run-dir experiment\runs\followup_cpu_pilot_100m
 ```
 
+## Rapid CPU Follow-Up (20M Tokens)
+
+For much faster CPU iteration, use `experiment\configs\followup_cpu_rapid.yaml`.
+
+This profile is intentionally small and practical for day-to-day iteration:
+
+- `seeds: [101, 202]`
+- `target_tokens: 20,000,000`
+- model shape: `n_layer: 4`, `n_head: 4`, `n_embd: 256`
+
+Run with the convenience script:
+
+```powershell
+.\scripts\run_followup_cpu_rapid_windows.ps1
+```
+
+Or run stages manually:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+tinystories-prepare --config experiment\configs\followup_cpu_rapid.yaml
+tinystories-train --config experiment\configs\followup_cpu_rapid.yaml
+tinystories-telemetry --run-dir experiment\runs\followup_cpu_rapid_20m
+tinystories-analyze --run-dir experiment\runs\followup_cpu_rapid_20m
+```
+
 ## Full-Scale 2.5B Profile (Reference)
 
 The full config is `experiment\configs\full_2_5b_xpu.yaml`.
