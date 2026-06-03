@@ -1,3 +1,4 @@
+https://doi.org/10.5281/zenodo.20533382
 # TinyStories XPU Experiment
 
 This experiment keeps the dissertation design intact while moving the implementation to
