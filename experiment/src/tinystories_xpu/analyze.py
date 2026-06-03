@@ -112,17 +112,49 @@ def _sphericity_report(df: pd.DataFrame) -> list[str]:
 
 def _rm_anova_report(run_dir: Path, df: pd.DataFrame, dv: str) -> list[str]:
     lines = [f"## Repeated-Measures ANOVA: {dv}", ""]
+    clean = df.dropna(subset=[dv]).copy()
+    subject_count = clean["seed"].nunique()
+    interval_count = clean["interval_index"].nunique()
+    if subject_count < 2 or interval_count < 2:
+        lines.append(
+            f"Repeated-measures ANOVA skipped for `{dv}`: insufficient complete "
+            f"data (seeds={subject_count}, intervals={interval_count})."
+        )
+        lines.append("")
+        return lines
+
+    # Keep only balanced intervals with all seeds to avoid degenerate designs.
+    per_interval = clean.groupby("interval_index")["seed"].nunique()
+    required = subject_count
+    keep_intervals = per_interval[per_interval == required].index
+    clean = clean[clean["interval_index"].isin(keep_intervals)]
+    interval_count = clean["interval_index"].nunique()
+    if interval_count < 2:
+        lines.append(
+            f"Repeated-measures ANOVA skipped for `{dv}`: not enough balanced "
+            f"intervals after dropping missing values."
+        )
+        lines.append("")
+        return lines
+
+    # Greenhouse-Geisser correction can become unstable with very small subject counts.
+    apply_correction = subject_count >= 3
     try:
         result = pg.rm_anova(
-            data=df,
+            data=clean,
             dv=dv,
             within="interval_index",
             subject="seed",
             detailed=True,
-            correction=True,
+            correction=apply_correction,
         )
         result.to_csv(run_dir / f"rm_anova_{dv}.csv", index=False)
         lines.append(result.to_markdown(index=False))
+    except ZeroDivisionError:
+        lines.append(
+            f"Repeated-measures ANOVA skipped for `{dv}`: degenerate variance/"
+            "degrees-of-freedom in this tiny sample."
+        )
     except Exception as exc:
         lines.append(f"Repeated-measures ANOVA failed for `{dv}`: `{exc}`.")
     lines.append("")
@@ -131,6 +163,13 @@ def _rm_anova_report(run_dir: Path, df: pd.DataFrame, dv: str) -> list[str]:
 
 def _mixed_model_report(df: pd.DataFrame) -> list[str]:
     lines = ["## Linear Mixed Effects Robustness Check", ""]
+    if df["seed"].nunique() < 3:
+        lines.append(
+            "Mixed-effects model skipped: fewer than three seeds often leads to "
+            "singular random-effects covariance in this design."
+        )
+        lines.append("")
+        return lines
     try:
         model = smf.mixedlm("val_loss ~ C(interval_index)", df, groups=df["seed"])
         result = model.fit(reml=False, method="lbfgs", maxiter=500)
