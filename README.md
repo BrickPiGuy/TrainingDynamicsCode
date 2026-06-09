@@ -217,3 +217,30 @@ The derived stability variables are:
 
 These map directly onto the paper's repeated-measures questions about training stability,
 between-seed variability, non-monotonic behavior, and stable phase detection.
+
+## Latest Completed Run Snapshot (2026-06-09)
+
+Completed run:
+
+- profile: `followup_cpu_rapid_20m_6s`
+- seeds: `101, 202, 303, 404, 505, 606`
+- target tokens per seed: `20,000,000`
+- completion: all 6 seeds reached done status
+
+Primary outputs:
+
+- `experiment/runs/followup_cpu_rapid_20m_6s/analysis_report.md`
+- `experiment/runs/followup_cpu_rapid_20m_6s/metrics_all.csv`
+- `experiment/runs/followup_cpu_rapid_20m_6s/telemetry_derived.csv`
+
+Headline statistical result summary:
+
+- repeated-measures ANOVA showed a strong interval effect for `val_loss`, `val_ppl`, and
+	`rolling_volatility` with extremely small p-values.
+- mixed-effects robustness check (`val_loss ~ C(interval_index)`, grouped by seed) converged
+	and showed strong negative coefficients for all post-baseline intervals.
+
+Note:
+
+- run artifacts under `experiment/runs/` are ignored by git in this repository.
+	This README section is the tracked summary for Git history.
