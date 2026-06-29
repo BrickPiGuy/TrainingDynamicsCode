@@ -1,0 +1,7 @@
+Running rapid CPU follow-up profile
+Config: C:\Users\josep\OneDrive\Documents\GitHub\TrainingDynamicsCode\experiment\configs\followup_cpu_rapid.yaml
+Run dir: C:\Users\josep\OneDrive\Documents\GitHub\TrainingDynamicsCode\experiment\runs\followup_cpu_rapid_20m
+Prepared TinyStories cache at C:\Users\josep\OneDrive\Documents\GitHub\TrainingDynamicsCode\experiment\data\tinystories_smoke
+Train tokens: 428,628
+Validation tokens: 402,158
+Done. See: C:\Users\josep\OneDrive\Documents\GitHub\TrainingDynamicsCode\experiment\runs\followup_cpu_rapid_20m

@@ -1,0 +1,57 @@
+experiment:
+  run_name: smoke_cpu_fresh_20260603
+  output_dir: experiment/runs
+  seeds: [101, 202]
+  target_tokens: 262144
+  checkpoint_tokens: 65536
+  eval_batches: 2
+  eval_seed: 9001
+
+data:
+  dataset_name: roneneldan/TinyStories
+  train_split: train
+  validation_split: validation
+  text_field: text
+  cache_dir: experiment/data/tinystories_smoke
+  tokenizer_path: experiment/data/tinystories_smoke/tokenizer.json
+  tokenizer_vocab_size: 4096
+  tokenizer_train_documents: 1000
+  prepare_document_limit: 2000
+  append_eos: true
+  dtype: uint16
+
+model:
+  vocab_size: 4096
+  block_size: 128
+  n_layer: 2
+  n_head: 4
+  n_embd: 128
+  dropout: 0.0
+  multiple_of: 64
+  rope_base: 10000.0
+
+training:
+  device: cpu
+  precision: bf16
+  micro_batch_size: 4
+  gradient_accumulation_steps: 2
+  learning_rate: 0.0005
+  min_learning_rate: 0.00005
+  weight_decay: 0.1
+  beta1: 0.9
+  beta2: 0.95
+  grad_clip: 1.0
+  warmup_tokens: 32768
+  compile: false
+  num_workers: 0
+  log_every_steps: 1
+  checkpoint_every_tokens: 131072
+  keep_last_checkpoints: 1
+
+telemetry:
+  rolling_window: 3
+  spike_min_delta: 0.01
+  spike_z_threshold: 2.0
+  stable_volatility_quantile: 0.25
+  stable_spike_rate_max: 0.0
+  stable_backslide_frequency_max: 1

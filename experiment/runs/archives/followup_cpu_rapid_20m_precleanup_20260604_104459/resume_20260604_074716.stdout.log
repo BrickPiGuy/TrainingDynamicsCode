@@ -1,0 +1,4 @@
+seed=101 resumed checkpoint=seed_101_tokens_6000640.pt step=2930 tokens=6,000,640
+seed=101 parameters=4,262,144 device=cpu tokens_per_step=2,048
+seed=101 step=2940 tokens=6,021,120 loss=2.1081 lr=3.41e-04
+seed=101 step=2950 tokens=6,041,600 loss=2.1130 lr=3.41e-04

@@ -1,0 +1,2 @@
+run_name,seed,interval_index,tokens_seen,target_checkpoint_tokens,step,train_loss,val_loss,val_ppl,elapsed_seconds,tokens_per_second,learning_rate,epoch_equivalent,device,precision
+followup_cpu_pilot_100m,101,0,0,0,0,nan,10.519987106323242,37048.646795655935,7.622622499999125,0.0,0.0003,0.0,cpu,fp32
