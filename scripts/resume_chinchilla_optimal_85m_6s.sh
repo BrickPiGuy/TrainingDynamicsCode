@@ -19,6 +19,22 @@ else
   exit 1
 fi
 
+if ! "$python_cmd" -c "import tinystories_xpu" >/dev/null 2>&1; then
+  export PYTHONPATH="$repo_root/experiment/src${PYTHONPATH:+:$PYTHONPATH}"
+fi
+
+if ! "$python_cmd" -c "import tinystories_xpu" >/dev/null 2>&1; then
+  if [[ -f "$repo_root/experiment/pyproject.toml" ]]; then
+    echo "Package tinystories_xpu not installed. Installing editable package..."
+    "$python_cmd" -m pip install -e "$repo_root/experiment"
+  fi
+fi
+
+if ! "$python_cmd" -c "import tinystories_xpu" >/dev/null 2>&1; then
+  echo "Unable to import tinystories_xpu after bootstrap. Ensure dependencies are installed." >&2
+  exit 1
+fi
+
 if [[ ! -f "$meta_path" ]]; then
   echo "Prepared data cache missing. Running prepare stage first..."
   "$python_cmd" -m tinystories_xpu.prepare_data --config "$config"
