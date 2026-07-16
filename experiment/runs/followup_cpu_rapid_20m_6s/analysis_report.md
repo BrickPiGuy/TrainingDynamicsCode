@@ -12,7 +12,7 @@ Shapiro-Wilk tests were computed per interval; minimum p-value: 0.1477.
 
 ## Sphericity
 
-Mauchly sphericity result: `SpherResults(spher=True, W=np.float64(8.502379612308744e+48), chi2=np.float64(208.4291965034767), dof=209, pval=np.float64(27.80138661428326))`.
+Mauchly sphericity result: `SpherResults(spher=True, W=np.float64(8.502379612308738e+48), chi2=np.float64(208.4291965034767), dof=209, pval=np.float64(27.80138661428326))`.
 
 ## Repeated-Measures ANOVA: val_loss
 

@@ -2,11 +2,11 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-config="$repo_root/experiment/configs/chinchilla_optimal_85m_6s.yaml"
-run_dir="$repo_root/experiment/runs/chinchilla_optimal_85m_6s"
+config="$repo_root/experiment/configs/followup_cpu_rapid_20m_6s.yaml"
+run_dir="$repo_root/experiment/runs/followup_cpu_rapid_20m_6s"
 meta_path="$repo_root/experiment/data/tinystories_smoke/meta.json"
 
-target_tokens=85000000
+target_tokens=20000000
 
 if [[ -x "$repo_root/.venv/bin/python" ]]; then
   python_cmd="$repo_root/.venv/bin/python"
@@ -23,15 +23,32 @@ if ! "$python_cmd" -c "import tinystories_xpu" >/dev/null 2>&1; then
   export PYTHONPATH="$repo_root/experiment/src${PYTHONPATH:+:$PYTHONPATH}"
 fi
 
+need_install=0
 if ! "$python_cmd" -c "import tinystories_xpu" >/dev/null 2>&1; then
+  need_install=1
+fi
+if ! "$python_cmd" -c "import tokenizers, datasets, yaml" >/dev/null 2>&1; then
+  need_install=1
+fi
+
+if [[ "$need_install" -eq 1 ]]; then
   if [[ -f "$repo_root/experiment/pyproject.toml" ]]; then
-    echo "Package tinystories_xpu not installed. Installing editable package..."
+    echo "Installing experiment package and dependencies..."
     "$python_cmd" -m pip install -e "$repo_root/experiment"
   fi
 fi
 
+if ! "$python_cmd" -c "import torch" >/dev/null 2>&1; then
+  echo "PyTorch not found. Installing CPU PyTorch wheel..."
+  "$python_cmd" -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+fi
+
 if ! "$python_cmd" -c "import tinystories_xpu" >/dev/null 2>&1; then
   echo "Unable to import tinystories_xpu after bootstrap. Ensure dependencies are installed." >&2
+  exit 1
+fi
+if ! "$python_cmd" -c "import tokenizers, datasets, yaml, torch" >/dev/null 2>&1; then
+  echo "Missing runtime dependencies after bootstrap (expected: tokenizers, datasets, pyyaml, torch)." >&2
   exit 1
 fi
 
